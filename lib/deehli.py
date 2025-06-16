@@ -1,0 +1,151 @@
+import numpy as np
+
+from logging import Logger
+from typing import override, Optional
+from .structs_generic import UserInterfaceABC, DriverInterfaceABC, KinematicsManagerABC, FowardKinematicsDescription, InverseKinematicsDescription
+from .visualization.kinevisu import DaVinciEffector3DViz, Event
+from .lib_serial import ThreadedSerialHandler
+
+class KinematicsManager(KinematicsManagerABC):
+    """Class to manage kinematics, and transmit commands to driver interfaces"""
+    theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = 0.0, np.radians(-6), np.radians(7), np.radians(-7) # rad, meaning: at angles = +offset, neutral position of the tip
+
+    @override
+    def compute_forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> InverseKinematicsDescription | None:
+        """Compute forward kinematics. If invalid, returns None.""" 
+        # TODO: use matrix like for inverse
+        theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = DaVinciEffector3DViz.theta_1_offset, DaVinciEffector3DViz.theta_2_offset, DaVinciEffector3DViz.theta_3_offset, DaVinciEffector3DViz.theta_4_offset
+        theta_1, theta_2, theta_3, theta_4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
+        theta_1, theta_2, theta_3, theta_4 = theta_1 - theta_1_offset, theta_2 - theta_2_offset, theta_3 - theta_3_offset, theta_4 - theta_4_offset # Apply offsets
+
+        # FORWARD KINEMATICS
+        lambd = forward_kinematics_params.lambd
+        pitch, roll, jaw1, jaw2 = 0., 0., 0., 0.
+
+        roll = 270/170*theta_2
+
+        pitch = - 80/80 * theta_1
+
+        jaw1 = 110/90*(theta_3 - 70/80*theta_1)
+        jaw2 = 110/90*(theta_4 - 70/80*theta_1)
+        
+        inv_params = InverseKinematicsDescription(roll, pitch, jaw1, jaw2, lambd)
+        ret = self._condition_check(forward_kinematics_params, inv_params)
+        if self.logger:
+            self.logger.debug(f"Computed forward kinematics: valid={ret}, fwd={forward_kinematics_params}, inv={inv_params}")
+        if ret is False: # Out of bounds
+            return None
+        return inv_params
+    
+    @override
+    def compute_inverse_kinematics(self, inverse_kinematics_params: InverseKinematicsDescription) -> FowardKinematicsDescription | None:
+        """Compute inverse kinematics. If invalid, returns None."""
+        roll, pitch, jaw1, jaw2 = inverse_kinematics_params.theta_r, inverse_kinematics_params.theta_p, inverse_kinematics_params.theta_j1, inverse_kinematics_params.theta_j2
+
+        # INVERSE KINEMATICS
+        lambd = inverse_kinematics_params.lambd
+        theta_2 = 170/270*roll
+
+        out_vec3 = np.array([pitch, jaw1, jaw2])
+        rel_matrix = np.array([
+            [-80/80       , 0       , 0     ],
+            [-70/80*110/90, 110/90  , 0     ],
+            [-70/80*110/90, 0       , 110/90],
+        ])
+        in_vec3 = np.linalg.solve(rel_matrix, out_vec3)
+        theta_1, theta_3, theta_4 = in_vec3[0], in_vec3[1], in_vec3[2]
+
+        # Check conditions
+        fwd_params = FowardKinematicsDescription(theta_1, theta_2, theta_3, theta_4, lambd)
+        ret = self._condition_check(fwd_params, inverse_kinematics_params)
+        if self.logger:
+            self.logger.debug(f"Computed inverse kinematics: valid={ret}, fwd={fwd_params}, inv={inverse_kinematics_params}")
+        if ret is False: # Out of bounds
+            return None
+        return fwd_params
+
+    def _condition_check(self, fwd_params: FowardKinematicsDescription, inv_params: InverseKinematicsDescription) -> bool:
+        """True if in bounds, False otherwise."""
+        roll, pitch, jaw1, jaw2 = inv_params.theta_r, inv_params.theta_p, inv_params.theta_j1, inv_params.theta_j2
+        theta_1, _, theta_3, theta_4 = fwd_params.theta_1, fwd_params.theta_2, fwd_params.theta_3, fwd_params.theta_4
+        theta_3_offset, theta_4_offset = self.theta_3_offset, self.theta_4_offset
+
+        # Trivial boundary conditions
+        if ((np.degrees(pitch) < -80 or np.degrees(pitch) > 80) or
+            (np.degrees(roll) < -270 or np.degrees(roll)) > 270 or
+            (np.degrees(jaw1) < -110 or np.degrees(jaw1)) > 110 or
+            (np.degrees(jaw2) < -110 or np.degrees(jaw2)) > 110
+            ):
+            return False
+
+        # Variable boundary conditions
+        delta_boundary = 0
+        if theta_4 - theta_4_offset < np.radians(-90):
+            delta_boundary += 80/60*(theta_3 - theta_3_offset + np.radians(90))
+        elif np.radians(90) < theta_3 - theta_3_offset:
+            delta_boundary += 80/60*(theta_4 - theta_4_offset - np.radians(90))
+        if ((theta_3 - self.theta_3_offset - (theta_4 - self.theta_4_offset) > 0.01) or
+            (theta_1 - self.theta_1_offset < -np.radians(80) + delta_boundary or theta_1 - self.theta_1_offset > np.radians(80) + delta_boundary)
+         ):
+            return False
+
+        return True
+    
+class UserInterface3DViz(UserInterfaceABC):
+    """User interface with 3D visualization."""
+    #TODO: add lambd slider (externally ?)
+
+    def __init__(self, kinematics_manager: KinematicsManagerABC, logger: Optional[Logger] | None = None) -> None:
+        super().__init__(kinematics_manager, logger)
+        self.viz = DaVinciEffector3DViz()
+
+        # === Add custom button ===
+        self.viz.ext_create_user_button("Send command (as inverse!)", self._on_action_click, width=0.24)
+
+    def _on_action_click(self, event: Event) -> None: # What to do on user button click
+        if self.logger:
+            self.logger.debug("User button click detected")
+
+        # Retrieve **inverse** parameters 
+        inv_params = InverseKinematicsDescription(
+            theta_r=self.viz.roll,
+            theta_p=self.viz.pitch,
+            theta_j1=self.viz.jaw1,
+            theta_j2=self.viz.jaw2,
+            lambd=0
+        )
+        if not self.kinematics_manager.inverse_kinematics(inv_params):
+            if self.logger:
+                self.logger.info(f"WARNING: invalid kinematic parameters {inv_params=}")
+    
+    def run(self, is_blocking: bool = True) -> None:
+        """Display the figure.
+        
+        Args:
+            is_blocking (bool, optional): If False, is non blocking by enabling matplotlib interacting mode, blocking if True. Defaults to True"""
+        if self.logger:
+            self.logger.debug(f"Running UserInterface3DViz with {is_blocking=}")
+        self.viz.run(is_blocking)
+
+class DriverInterface(DriverInterfaceABC):
+    serial_baudrate = 115200
+    servo_max_speed = 30.0 # deg per s
+
+    def __init__(self, logger: Optional[Logger] | None = None) -> None:
+        super().__init__(logger)
+        self.serial = ThreadedSerialHandler(baudrate=DriverInterface.serial_baudrate, logger=logger)
+        # self.can
+    
+    @override
+    def drive(self, forward_kinematics_params: FowardKinematicsDescription) -> None:
+        """Send drive control. Will use: command id 4 - servo group goto"""
+        th1, th2, th3, th4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
+        msg = "4"
+        msg += f",1,{th1},{self.servo_max_speed}"
+        msg += f",2,{th2},{self.servo_max_speed}"
+        msg += f",3,{th3},{self.servo_max_speed}"
+        msg += f",4,{th4},{self.servo_max_speed}"
+        self.serial.queue_message(msg)
+        if self.logger:
+            self.logger.debug(f"Queued serial message {msg=}")
+        
