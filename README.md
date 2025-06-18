@@ -9,6 +9,10 @@ python library to drive the da Vinci Interface and STM32CubeIDE example integrat
 
 ## Usage
 
+Run `./main.py` using python. The program will wait for a valid COM serial device to appear, and will then connect to it. The use is then able to control via the GUI.
+
+
+
 ## Integration
 
 Please refer to [protocol_description.md](./protocol_description.md) for more details on the protocol used.
