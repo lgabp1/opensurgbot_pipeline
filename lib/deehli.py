@@ -100,11 +100,12 @@ class UserInterface3DViz(UserInterfaceABC):
         self.viz = DaVinciEffector3DViz()
 
         # === Add custom button ===
-        self.viz.ext_create_user_button("Send command (as inverse!)", self._on_action_click, width=0.24)
+        self.viz.ext_create_user_button("Send command (as inverse!)", self._on_send_click, width=0.21)
+        self.viz.ext_create_user_button("Random position", self._on_random_click, width=0.18, x=0.43)
 
-    def _on_action_click(self, event: Event) -> None: # What to do on user button click
+    def _on_send_click(self, event: Event) -> None: # What to do on user button click
         if self.logger:
-            self.logger.debug("User button click detected")
+            self.logger.debug("User button Send click detected")
 
         # Retrieve **inverse** parameters 
         inv_params = InverseKinematicsDescription(
@@ -118,6 +119,31 @@ class UserInterface3DViz(UserInterfaceABC):
             if self.logger:
                 self.logger.info(f"WARNING: invalid kinematic parameters {inv_params=}")
     
+    def _on_random_click(self, event: Event) -> None: # What to do on user button click
+        if self.logger:
+            self.logger.debug("User button Random click detected")
+        while True:
+            sample = np.random.random(4)
+            theta_1 = np.radians((sample[0] - 0.5)*2 * 78.5)
+            theta_2 = np.radians((sample[0] - 0.5)*2 * 170)
+            theta_3 = np.radians((sample[0] - 0.5)*2 * 150)
+            theta_4 = np.radians((sample[0] - 0.5)*2 * 150)
+            fwd_params = FowardKinematicsDescription(theta_1, theta_2, theta_3, theta_4, 0)
+            rev_params = self.kinematics_manager.compute_forward_kinematics(fwd_params)
+            if rev_params is not None:
+                self.viz.sliders[0].set_val(np.degrees(rev_params.theta_r))
+                self.viz.sliders[1].set_val(np.degrees(rev_params.theta_p))
+                self.viz.sliders[2].set_val(np.degrees(rev_params.theta_j1))
+                self.viz.sliders[3].set_val(np.degrees(rev_params.theta_j2))
+                self.viz.sliders[4].set_val(np.degrees(fwd_params.theta_1))
+                self.viz.sliders[5].set_val(np.degrees(fwd_params.theta_2))
+                self.viz.sliders[6].set_val(np.degrees(fwd_params.theta_3))
+                self.viz.sliders[7].set_val(np.degrees(fwd_params.theta_4))
+                self.viz.on_angle_slider_change(0)
+                self.viz.on_control_slider_change(0)
+                break
+
+
     def run(self, is_blocking: bool = True) -> None:
         """Display the figure.
         
@@ -141,10 +167,10 @@ class DriverInterface(DriverInterfaceABC):
         """Send drive control. Will use: command id 4 - servo group goto"""
         th1, th2, th3, th4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
         msg = "4"
-        msg += f",1,{th1},{self.servo_max_speed}"
-        msg += f",2,{th2},{self.servo_max_speed}"
-        msg += f",3,{th3},{self.servo_max_speed}"
-        msg += f",4,{th4},{self.servo_max_speed}"
+        msg += f",1,{np.degrees(th1):.2f},{self.servo_max_speed:.2f}"
+        msg += f",2,{np.degrees(th2):.2f},{self.servo_max_speed:.2f}"
+        msg += f",3,{np.degrees(th3):.2f},{self.servo_max_speed:.2f}"
+        msg += f",4,{np.degrees(th4):.2f},{self.servo_max_speed:.2f}"
         self.serial.queue_message(msg)
         if self.logger:
             self.logger.debug(f"Queued serial message {msg=}")
