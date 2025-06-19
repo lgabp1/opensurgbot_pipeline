@@ -78,8 +78,9 @@ class SerialHandler:
             raise SerialException("Serial port is not open")
 
 class ThreadedSerialHandler:
-    """Wrapper of SerialHandler with auto-reconnecting behaviour and safety measures."""
-    def __init__(self, baudrate: int=115200, timeout: float=1.0, wait_time: float = 0.1, logger: Optional[Logger] = None):
+    """Wrapper of SerialHandler, threaded with auto-reconnecting behaviour and safety measures."""
+    def __init__(self, port: Optional[str] = None, baudrate: int=115200, timeout: float=1.0, wait_time: float = 0.1, logger: Optional[Logger] = None):
+        self.port = port
         self._lock = threading.Lock()
         self._running = False
         self._serial_handler: SerialHandler | None = None
@@ -101,7 +102,7 @@ class ThreadedSerialHandler:
         port = None
         while self._running:
             try: 
-                port = get_serial_ports()[0]
+                port = get_serial_ports()[0] if self.port is None else self.port
             except Exception:
                 self._log("No serial port found.")
                 time.sleep(self._wait_time)

@@ -11,13 +11,11 @@ python library to drive the da Vinci Interface and STM32CubeIDE example integrat
 
 Run `./main.py` using python. The program will wait for a valid COM serial device to appear, and will then connect to it. The use is then able to control via the GUI.
 
-
-
 ## Integration
 
 Please refer to [protocol_description.md](./protocol_description.md) for more details on the protocol used.
 
-Please also find in [STM32CubeIDE_projects/](./STM32CubeIDE_projects/) an example project made for the DM-MC02 board. It is based on the [DM-MC02_drivers](https://github.com/lgabp1/DM-MC02_drivers) drivers.
+Please also find in [STM32CubeIDE_projects/](./STM32CubeIDE_projects/) an example project made for the DM-MC02 board. It is based on the [DM-MC02_drivers](https://github.com/lgabp1/DM-MC02_drivers) drivers, as well as my [zdt_stm32_driver](https://github.com/lgabp1/zdt_stm32_driver) library.
 
 ## Licence
 

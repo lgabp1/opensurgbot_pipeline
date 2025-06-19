@@ -10,7 +10,7 @@ class FowardKinematicsDescription:
     theta_2: float # rad
     theta_3: float # rad
     theta_4: float # rad
-    lambd: float # m
+    lambd: float # cm
 
 @dataclass
 class InverseKinematicsDescription:
@@ -19,7 +19,7 @@ class InverseKinematicsDescription:
     theta_p: float # rad
     theta_j1: float # rad
     theta_j2: float # rad
-    lambd: float # m
+    lambd: float # cm
 
 class DriverInterfaceABC(ABC):
     """Class to receive commands from the pipeline"""

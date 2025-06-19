@@ -1,10 +1,12 @@
+import time
 import numpy as np
-
 from logging import Logger
 from typing import override, Optional
 from .structs_generic import UserInterfaceABC, DriverInterfaceABC, KinematicsManagerABC, FowardKinematicsDescription, InverseKinematicsDescription
 from .visualization.kinevisu import DaVinciEffector3DViz, Event
 from .lib_serial import ThreadedSerialHandler
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 
 class KinematicsManager(KinematicsManagerABC):
     """Class to manage kinematics, and transmit commands to driver interfaces"""
@@ -100,8 +102,24 @@ class UserInterface3DViz(UserInterfaceABC):
         self.viz = DaVinciEffector3DViz()
 
         # === Add custom button ===
+        self.viz.ext_create_user_button("Reconnect", self._on_reconnect_click, width=0.15, x=0.8)
         self.viz.ext_create_user_button("Send command (as inverse!)", self._on_send_click, width=0.21)
         self.viz.ext_create_user_button("Random position", self._on_random_click, width=0.18, x=0.43)
+
+        # === Add CAN slider ===
+        can_slider_ax = plt.axes((0.1, 0.3, 0.01, 0.3), facecolor="blue")  # Position: [left, bottom, width, height]
+        self.can_slider = Slider(can_slider_ax, '$\\lambda$ (cm)', -7, 7, valinit=0, orientation="vertical")
+        self.viz.reset_button.on_clicked(self._reset_can_slider)
+
+    def _reset_can_slider(self, event: Event) -> None:
+        self.can_slider.set_val(0)        
+
+    def _on_reconnect_click(self, event: Event) -> None: # What to do on user button click
+        for interface in self.kinematics_manager.driver_interfaces:
+            if isinstance(interface, DriverInterface): # Which has serial connection
+                interface.serial.stop()
+                time.sleep(1)
+                interface.serial.start_threaded()
 
     def _on_send_click(self, event: Event) -> None: # What to do on user button click
         if self.logger:
@@ -113,7 +131,7 @@ class UserInterface3DViz(UserInterfaceABC):
             theta_p=self.viz.pitch,
             theta_j1=self.viz.jaw1,
             theta_j2=self.viz.jaw2,
-            lambd=0
+            lambd=self.can_slider.val
         )
         if not self.kinematics_manager.inverse_kinematics(inv_params):
             if self.logger:
@@ -128,7 +146,8 @@ class UserInterface3DViz(UserInterfaceABC):
             theta_2 = np.radians((sample[0] - 0.5)*2 * 170)
             theta_3 = np.radians((sample[0] - 0.5)*2 * 150)
             theta_4 = np.radians((sample[0] - 0.5)*2 * 150)
-            fwd_params = FowardKinematicsDescription(theta_1, theta_2, theta_3, theta_4, 0)
+            lambd = (np.random.random() - 0.5)*2 * 7
+            fwd_params = FowardKinematicsDescription(theta_1, theta_2, theta_3, theta_4, lambd)
             rev_params = self.kinematics_manager.compute_forward_kinematics(fwd_params)
             if rev_params is not None:
                 self.viz.sliders[0].set_val(np.degrees(rev_params.theta_r))
@@ -139,6 +158,7 @@ class UserInterface3DViz(UserInterfaceABC):
                 self.viz.sliders[5].set_val(np.degrees(fwd_params.theta_2))
                 self.viz.sliders[6].set_val(np.degrees(fwd_params.theta_3))
                 self.viz.sliders[7].set_val(np.degrees(fwd_params.theta_4))
+                self.can_slider.set_val(lambd)
                 self.viz.on_angle_slider_change(0)
                 self.viz.on_control_slider_change(0)
                 break
@@ -157,14 +177,24 @@ class DriverInterface(DriverInterfaceABC):
     serial_baudrate = 115200
     servo_max_speed = 30.0 # deg per s
 
-    def __init__(self, logger: Optional[Logger] | None = None) -> None:
+    def __init__(self, serial_port: Optional[str] = None, logger: Optional[Logger] | None = None) -> None:
         super().__init__(logger)
-        self.serial = ThreadedSerialHandler(baudrate=DriverInterface.serial_baudrate, logger=logger)
-        # self.can
+        self.serial = ThreadedSerialHandler(port=serial_port,baudrate=DriverInterface.serial_baudrate, logger=logger)
     
     @override
     def drive(self, forward_kinematics_params: FowardKinematicsDescription) -> None:
         """Send drive control. Will use: command id 4 - servo group goto"""
+        # ==== ZDT Linear actuator ====
+        # TODO !
+        lambd = forward_kinematics_params.lambd
+        steps, speed = self._get_zdt_args(lambd, 1)
+        msg = "11"
+        msg += f",1,{steps},{speed},0,1"
+        self.serial.queue_message(msg)
+        if self.logger:
+            self.logger.debug(f"Queued serial message {msg=}")
+
+        # ==== Servomotors ====
         th1, th2, th3, th4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
         msg = "4"
         msg += f",1,{np.degrees(th1):.2f},{self.servo_max_speed:.2f}"
@@ -174,4 +204,17 @@ class DriverInterface(DriverInterfaceABC):
         self.serial.queue_message(msg)
         if self.logger:
             self.logger.debug(f"Queued serial message {msg=}")
-        
+
+    def _get_zdt_args(self, alg_dist: float, max_speed: float) -> tuple[int,int]:
+        """Convert parameters
+         Args:
+            alg_idst (float): in cm
+            max_speed (float): in cm/s"""
+        ZDTStepPerTurn = 0.1 # cm (screw step)
+        ZDTStepRot = 1.8 # degrees (rotational step)
+        ZDTMicrostep = 16 # Multiplier
+
+        n_step = round(alg_dist * (360/ZDTStepPerTurn) * (1/(ZDTStepRot/ZDTMicrostep)))
+        speed_rpm = round(max_speed * 60 / ZDTStepPerTurn)
+
+        return (n_step, speed_rpm)
