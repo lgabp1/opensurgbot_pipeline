@@ -108,7 +108,7 @@ class UserInterface3DViz(UserInterfaceABC):
 
         # === Add CAN slider ===
         can_slider_ax = plt.axes((0.1, 0.3, 0.01, 0.3), facecolor="blue")  # Position: [left, bottom, width, height]
-        self.can_slider = Slider(can_slider_ax, '$\\lambda$ (cm)', -7, 7, valinit=0, orientation="vertical")
+        self.can_slider = Slider(can_slider_ax, '$\\lambda$ (cm)', -6, 6, valinit=0, orientation="vertical")
         self.viz.reset_button.on_clicked(self._reset_can_slider)
 
     def _reset_can_slider(self, event: Event) -> None:
@@ -146,7 +146,7 @@ class UserInterface3DViz(UserInterfaceABC):
             theta_2 = np.radians((sample[0] - 0.5)*2 * 170)
             theta_3 = np.radians((sample[0] - 0.5)*2 * 150)
             theta_4 = np.radians((sample[0] - 0.5)*2 * 150)
-            lambd = (np.random.random() - 0.5)*2 * 7
+            lambd = (np.random.random() - 0.5)*2 * 6
             fwd_params = FowardKinematicsDescription(theta_1, theta_2, theta_3, theta_4, lambd)
             rev_params = self.kinematics_manager.compute_forward_kinematics(fwd_params)
             if rev_params is not None:
@@ -175,7 +175,7 @@ class UserInterface3DViz(UserInterfaceABC):
 
 class DriverInterface(DriverInterfaceABC):
     serial_baudrate = 115200
-    servo_max_speed = 30.0 # deg per s
+    servo_max_speed = 60.0 # deg per s
 
     def __init__(self, serial_port: Optional[str] = None, logger: Optional[Logger] | None = None) -> None:
         super().__init__(logger)
@@ -213,8 +213,9 @@ class DriverInterface(DriverInterfaceABC):
         ZDTStepPerTurn = 0.1 # cm (screw step)
         ZDTStepRot = 1.8 # degrees (rotational step)
         ZDTMicrostep = 16 # Multiplier
+        normdist = (alg_dist+6) # Move the 0 to the edge
 
-        n_step = round(alg_dist * (360/ZDTStepPerTurn) * (1/(ZDTStepRot/ZDTMicrostep)))
+        n_step = round(normdist * (360/ZDTStepPerTurn) * (1/(ZDTStepRot/ZDTMicrostep)))
         speed_rpm = round(max_speed * 60 / ZDTStepPerTurn)
 
         return (n_step, speed_rpm)
