@@ -181,3 +181,26 @@ class ThreadedSerialHandler:
         if self.logger:
             with self._lock:
                 self.logger.log(log_level, msg)
+
+    def receive_line(self, timeout: float = 1.0, encoding: str = 'ascii', remove_newline: bool = True) -> str | None:
+        """Receive a line of data from the serial port.
+        
+        Args: 
+           encoding (str, optional): The encoding for the received data. Defaults to 'ascii'.
+           remove_newline (bool, optional): Whether to remove newline characters at the end of the received data. Defaults to True.
+        
+        Returns None if no data is received within the timeout period, otherwise returns the received line as str."""
+        time_begin = time.time()
+        while time.time() - time_begin < timeout:
+            if self._serial_handler and self._serial_handler.is_open():
+                try:
+                    recv = self._serial_handler.receive_line(encoding, remove_newline)
+                    if recv: # ignore empty strings
+                        return recv
+                except SerialException as e:
+                    self._log(f"Failed to receive line: {e}")
+                    break
+            time.sleep(self._wait_time)
+        return None 
+
+        

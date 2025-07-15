@@ -182,28 +182,50 @@ class DriverInterface(DriverInterfaceABC):
         self.serial = ThreadedSerialHandler(port=serial_port,baudrate=DriverInterface.serial_baudrate, logger=logger)
     
     @override
-    def drive(self, forward_kinematics_params: FowardKinematicsDescription) -> None:
-        """Send drive control. Will use: command id 4 - servo group goto"""
-        # ==== ZDT Linear actuator ====
-        # TODO !
+    def drive(self, forward_kinematics_params: FowardKinematicsDescription, timeout: float = 10.0) -> None:
+        """Send drive control and wait for the movement to finish. Will use: command id 101 - deehli drive all blocking"""
+        # ==== Building the message ====
+        msg = '101'
+        # === servos ===
+        th1, th2, th3, th4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
+        msg += f",{np.degrees(th1):.2f}"
+        msg += f",{np.degrees(th2):.2f}"
+        msg += f",{np.degrees(th3):.2f}"
+        msg += f",{np.degrees(th4):.2f}"
+        msg += f",{self.servo_max_speed:.2f}"
+        
+        # === ZDT Linear actuator ===
         lambd = forward_kinematics_params.lambd
         steps, speed = self._get_zdt_args(lambd, 1)
-        msg = "11"
-        msg += f",1,{steps},{speed},0,1"
+        msg += f",1,{steps},{speed},0,{round(timeout*1000)}"
         self.serial.queue_message(msg)
         if self.logger:
             self.logger.debug(f"Queued serial message {msg=}")
-
-        # ==== Servomotors ====
-        th1, th2, th3, th4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
-        msg = "4"
-        msg += f",1,{np.degrees(th1):.2f},{self.servo_max_speed:.2f}"
-        msg += f",2,{np.degrees(th2):.2f},{self.servo_max_speed:.2f}"
-        msg += f",3,{np.degrees(th3):.2f},{self.servo_max_speed:.2f}"
-        msg += f",4,{np.degrees(th4):.2f},{self.servo_max_speed:.2f}"
-        self.serial.queue_message(msg)
-        if self.logger:
-            self.logger.debug(f"Queued serial message {msg=}")
+        
+        cmd_begin_time = time.time()
+        acked = False
+        while time.time() - cmd_begin_time < timeout: # Wait for ack
+            recv = self.serial.receive_line()
+            if recv and recv.startswith("250"):
+                acked = True
+                if self.logger:
+                    self.logger.debug(f"Received message acknowledgment: {recv}")
+                break
+        if not acked:
+            if self.logger:
+                self.logger.warning(f"Did not receive message acknowledgment in {timeout} seconds")
+            return
+        
+        done = False
+        while time.time() - cmd_begin_time < timeout: # Wait for done
+            recv = self.serial.receive_line()
+            if recv and recv.startswith("249"):
+                done = True
+                break
+        if not done:
+            if self.logger:
+                self.logger.warning(f"Did not receive command success message in {timeout} seconds")
+            return
 
     def _get_zdt_args(self, alg_dist: float, max_speed: float) -> tuple[int,int]:
         """Convert parameters
