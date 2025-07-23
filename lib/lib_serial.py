@@ -8,10 +8,11 @@ from serial.tools.list_ports import comports
 from serial.tools.list_ports_common import ListPortInfo
 import threading
 from threading import Lock
-from typing import Literal, Callable, Any, Optional
+from typing import Callable, Any, Optional, List, Union, Dict
+from typing_extensions import Literal
 from logging import Logger
 
-def get_serial_ports() -> list[ListPortInfo]:
+def get_serial_ports() -> List[ListPortInfo]:
     """Get a list of available serial ports.
     
     Return: list[ListPortInfo]: A list of available serial ports."""
@@ -19,7 +20,7 @@ def get_serial_ports() -> list[ListPortInfo]:
 
 class SerialHandler:
     """Class to handle serial communication"""
-    locks: dict[str, Lock] = {} # Locks for all serial handles
+    locks: Dict[str, Lock] = {} # Locks for all serial handles
 
     
     def __init__(self, port: str, baudrate: int, timeout: float = 1.0):
@@ -83,11 +84,11 @@ class ThreadedSerialHandler:
         self.port = port
         self._lock = threading.Lock()
         self._running = False
-        self._serial_handler: SerialHandler | None = None
+        self._serial_handler: Union[SerialHandler, None] = None
         self.logger = logger
 
         self._baudrate, self._timeout, self._wait_time = baudrate, timeout, wait_time
-        self._message_queue: list[str] = []
+        self._message_queue: List[str] = []
 
         self.start_threaded()
         
@@ -182,7 +183,7 @@ class ThreadedSerialHandler:
             with self._lock:
                 self.logger.log(log_level, msg)
 
-    def receive_line(self, timeout: float = 1.0, encoding: str = 'ascii', remove_newline: bool = True) -> str | None:
+    def receive_line(self, timeout: float = 1.0, encoding: str = 'ascii', remove_newline: bool = True) -> Union[str, None]:
         """Receive a line of data from the serial port.
         
         Args: 

@@ -1,22 +1,28 @@
 import time
 import numpy as np
 from logging import Logger
-from typing import override, Optional
+from typing import Optional, Union, Tuple
 from .structs_generic import UserInterfaceABC, DriverInterfaceABC, KinematicsManagerABC, FowardKinematicsDescription, InverseKinematicsDescription
-from .visualization.kinevisu import DaVinciEffector3DViz, Event
+from .kinevisu.kinevisu import DeehliViz, Event
 from .lib_serial import ThreadedSerialHandler
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+
+try:
+    from typing import override
+except ImportError:
+    def override(func): # dummy decorator for older python versions
+        return func
 
 class KinematicsManager(KinematicsManagerABC):
     """Class to manage kinematics, and transmit commands to driver interfaces"""
     theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = 0.0, np.radians(-6), np.radians(7), np.radians(-7) # rad, meaning: at angles = +offset, neutral position of the tip
 
     @override
-    def compute_forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> InverseKinematicsDescription | None:
+    def compute_forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> Union[InverseKinematicsDescription, None]:
         """Compute forward kinematics. If invalid, returns None.""" 
         # TODO: use matrix like for inverse
-        theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = DaVinciEffector3DViz.theta_1_offset, DaVinciEffector3DViz.theta_2_offset, DaVinciEffector3DViz.theta_3_offset, DaVinciEffector3DViz.theta_4_offset
+        theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = DeehliViz.theta_1_offset, DeehliViz.theta_2_offset, DeehliViz.theta_3_offset, DeehliViz.theta_4_offset
         theta_1, theta_2, theta_3, theta_4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
         theta_1, theta_2, theta_3, theta_4 = theta_1 - theta_1_offset, theta_2 - theta_2_offset, theta_3 - theta_3_offset, theta_4 - theta_4_offset # Apply offsets
 
@@ -40,7 +46,7 @@ class KinematicsManager(KinematicsManagerABC):
         return inv_params
     
     @override
-    def compute_inverse_kinematics(self, inverse_kinematics_params: InverseKinematicsDescription) -> FowardKinematicsDescription | None:
+    def compute_inverse_kinematics(self, inverse_kinematics_params: InverseKinematicsDescription) -> Union[FowardKinematicsDescription, None]:
         """Compute inverse kinematics. If invalid, returns None."""
         roll, pitch, jaw1, jaw2 = inverse_kinematics_params.theta_r, inverse_kinematics_params.theta_p, inverse_kinematics_params.theta_j1, inverse_kinematics_params.theta_j2
 
@@ -97,9 +103,9 @@ class UserInterface3DViz(UserInterfaceABC):
     """User interface with 3D visualization."""
     #TODO: add lambd slider (externally ?)
 
-    def __init__(self, kinematics_manager: KinematicsManagerABC, logger: Optional[Logger] | None = None) -> None:
+    def __init__(self, kinematics_manager: KinematicsManagerABC, logger: Union[Optional[Logger], None] = None) -> None:
         super().__init__(kinematics_manager, logger)
-        self.viz = DaVinciEffector3DViz()
+        self.viz = DeehliViz()
 
         # === Add custom button ===
         self.viz.ext_create_user_button("Reconnect", self._on_reconnect_click, width=0.15, x=0.8)
@@ -112,7 +118,7 @@ class UserInterface3DViz(UserInterfaceABC):
         self.viz.reset_button.on_clicked(self._reset_can_slider)
 
     def _reset_can_slider(self, event: Event) -> None:
-        self.can_slider.set_val(0)        
+        self.can_slider.set_val(-6)        
 
     def _on_reconnect_click(self, event: Event) -> None: # What to do on user button click
         for interface in self.kinematics_manager.driver_interfaces:
@@ -135,7 +141,7 @@ class UserInterface3DViz(UserInterfaceABC):
         )
         if not self.kinematics_manager.inverse_kinematics(inv_params):
             if self.logger:
-                self.logger.info(f"WARNING: invalid kinematic parameters {inv_params=}")
+                self.logger.info(f"WARNING: invalid kinematic parameters inv_params={inv_params}")
     
     def _on_random_click(self, event: Event) -> None: # What to do on user button click
         if self.logger:
@@ -170,14 +176,14 @@ class UserInterface3DViz(UserInterfaceABC):
         Args:
             is_blocking (bool, optional): If False, is non blocking by enabling matplotlib interacting mode, blocking if True. Defaults to True"""
         if self.logger:
-            self.logger.debug(f"Running UserInterface3DViz with {is_blocking=}")
+            self.logger.debug(f"Running UserInterface3DViz with is_blocking={is_blocking}")
         self.viz.run(is_blocking)
 
 class DriverInterface(DriverInterfaceABC):
     serial_baudrate = 115200
     servo_max_speed = 60.0 # deg per s
 
-    def __init__(self, serial_port: Optional[str] = None, logger: Optional[Logger] | None = None) -> None:
+    def __init__(self, serial_port: Optional[str] = None, logger: Optional[Logger] = None) -> None:
         super().__init__(logger)
         self.serial = ThreadedSerialHandler(port=serial_port,baudrate=DriverInterface.serial_baudrate, logger=logger)
     
@@ -200,7 +206,7 @@ class DriverInterface(DriverInterfaceABC):
         msg += f",1,{steps},{speed},0,{round(timeout*1000)}"
         self.serial.queue_message(msg)
         if self.logger:
-            self.logger.debug(f"Queued serial message {msg=}")
+            self.logger.debug(f"Queued serial message msg={msg}")
         
         cmd_begin_time = time.time()
         acked = False
@@ -227,7 +233,7 @@ class DriverInterface(DriverInterfaceABC):
                 self.logger.warning(f"Did not receive command success message in {timeout} seconds")
             return
 
-    def _get_zdt_args(self, alg_dist: float, max_speed: float) -> tuple[int,int]:
+    def _get_zdt_args(self, alg_dist: float, max_speed: float) -> Tuple[int,int]:
         """Convert parameters
          Args:
             alg_idst (float): in cm

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from logging import Logger
-from typing import Optional
+from typing import Optional, List, Union
 
 @dataclass
 class FowardKinematicsDescription:
@@ -41,7 +41,7 @@ class KinematicsManagerABC(ABC):
     """Class to manage kinematics, and transmit commands to driver interfaces"""
     def __init__(
             self,
-            driver_interfaces: list[DriverInterfaceABC] = [],
+            driver_interfaces: List[DriverInterfaceABC] = [],
             logger: Optional[Logger] = None
             ) -> None:
         super().__init__()
@@ -69,12 +69,12 @@ class KinematicsManagerABC(ABC):
         return True
 
     @abstractmethod
-    def compute_forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> InverseKinematicsDescription | None:
+    def compute_forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> Union[InverseKinematicsDescription, None]:
         """Compute forward kinematics. If invalid, returns None."""
         raise NotImplementedError()
     
     @abstractmethod
-    def compute_inverse_kinematics(self, inverse_kinematics_params: InverseKinematicsDescription) -> FowardKinematicsDescription | None:
+    def compute_inverse_kinematics(self, inverse_kinematics_params: InverseKinematicsDescription) -> Union[FowardKinematicsDescription, None]:
         """Compute inverse kinematics. If invalid, returns None."""
         raise NotImplementedError()
     
