@@ -31,12 +31,14 @@ class KinematicsManager(KinematicsManagerABC):
         pitch, roll, jaw1, jaw2 = 0., 0., 0., 0.
 
         roll = 270/170*theta_2
-
-        pitch = - 80/80 * theta_1
-
-        jaw1 = 110/90*(theta_3 - 70/80*theta_1)
-        jaw2 = 110/90*(theta_4 - 70/80*theta_1)
         
+        rel_matrix = np.array([
+            [-80/80       , 0       , 0     ],
+            [-70/80*110/90, 110/90  , 0     ],
+            [-70/80*110/90, 0       , 110/90],
+        ])
+        pitch, jaw1, jaw2 = rel_matrix @ np.array([theta_1, theta_3, theta_4])
+
         inv_params = InverseKinematicsDescription(roll, pitch, jaw1, jaw2, lambd)
         ret = self._condition_check(forward_kinematics_params, inv_params)
         if self.logger:
@@ -148,10 +150,10 @@ class UserInterface3DViz(UserInterfaceABC):
             self.logger.debug("User button Random click detected")
         while True:
             sample = np.random.random(4)
-            theta_1 = np.radians((sample[0] - 0.5)*2 * 78.5)
-            theta_2 = np.radians((sample[0] - 0.5)*2 * 170)
-            theta_3 = np.radians((sample[0] - 0.5)*2 * 150)
-            theta_4 = np.radians((sample[0] - 0.5)*2 * 150)
+            theta_1 = np.radians((sample[0] - 0.5)*2 * (78.5 - 5)) # 5° border margin
+            theta_2 = np.radians((sample[0] - 0.5)*2 * (170. - 5)) # 5° border margin
+            theta_3 = np.radians((sample[0] - 0.5)*2 * (150. - 5)) # 5° border margin
+            theta_4 = np.radians((sample[0] - 0.5)*2 * (150. - 5)) # 5° border margin
             lambd = (np.random.random() - 0.5)*2 * 6
             fwd_params = FowardKinematicsDescription(theta_1, theta_2, theta_3, theta_4, lambd)
             rev_params = self.kinematics_manager.compute_forward_kinematics(fwd_params)
@@ -181,7 +183,8 @@ class UserInterface3DViz(UserInterfaceABC):
 
 class DriverInterface(DriverInterfaceABC):
     serial_baudrate = 115200
-    servo_max_speed = 60.0 # deg per s
+    servo_max_speed = 100.0 # deg per s
+    ZDT_max_speed = 2 # cm per s
 
     def __init__(self, serial_port: Optional[str] = None, logger: Optional[Logger] = None) -> None:
         super().__init__(logger)
@@ -194,15 +197,15 @@ class DriverInterface(DriverInterfaceABC):
         msg = '101'
         # === servos ===
         th1, th2, th3, th4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
-        msg += f",{np.degrees(th1):.2f}"
-        msg += f",{np.degrees(th2):.2f}"
-        msg += f",{np.degrees(th3):.2f}"
-        msg += f",{np.degrees(th4):.2f}"
+        msg += f",{-np.degrees(th1):.2f}" # Invert sign: negative of dial angle convention
+        msg += f",{-np.degrees(th2):.2f}" # Invert sign: negative of dial angle convention
+        msg += f",{-np.degrees(th3):.2f}" # Invert sign: negative of dial angle convention
+        msg += f",{-np.degrees(th4):.2f}" # Invert sign: negative of dial angle convention
         msg += f",{self.servo_max_speed:.2f}"
         
         # === ZDT Linear actuator ===
         lambd = forward_kinematics_params.lambd
-        steps, speed = self._get_zdt_args(lambd, 1)
+        steps, speed = self._get_zdt_args(lambd, self.ZDT_max_speed)
         msg += f",1,{steps},{speed},0,{round(timeout*1000)}"
         self.serial.queue_message(msg)
         if self.logger:
