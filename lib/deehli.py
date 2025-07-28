@@ -186,9 +186,9 @@ class DriverInterface(DriverInterfaceABC):
     servo_max_speed = 100.0 # deg per s
     ZDT_max_speed = 2 # cm per s
 
-    def __init__(self, serial_port: Optional[str] = None, logger: Optional[Logger] = None) -> None:
+    def __init__(self, serial_port: Optional[str] = None, serial_timeout: float = 1.0, serial_wait_time: float = 0.1, logger: Optional[Logger] = None) -> None:
         super().__init__(logger)
-        self.serial = ThreadedSerialHandler(port=serial_port,baudrate=DriverInterface.serial_baudrate, logger=logger)
+        self.serial = ThreadedSerialHandler(port=serial_port,baudrate=DriverInterface.serial_baudrate, timeout=serial_timeout, wait_time=serial_wait_time, logger=logger)
     
     @override
     def drive(self, forward_kinematics_params: FowardKinematicsDescription, timeout: float = 10.0) -> None:
@@ -214,7 +214,7 @@ class DriverInterface(DriverInterfaceABC):
         cmd_begin_time = time.time()
         acked = False
         while time.time() - cmd_begin_time < timeout: # Wait for ack
-            recv = self.serial.receive_line()
+            recv = self.serial.receive_line(timeout=timeout)
             if recv and recv.startswith("250"):
                 acked = True
                 if self.logger:
@@ -227,7 +227,7 @@ class DriverInterface(DriverInterfaceABC):
         
         done = False
         while time.time() - cmd_begin_time < timeout: # Wait for done
-            recv = self.serial.receive_line()
+            recv = self.serial.receive_line(timeout=timeout)
             if recv and recv.startswith("249"):
                 done = True
                 break

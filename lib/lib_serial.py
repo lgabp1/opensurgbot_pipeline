@@ -113,7 +113,7 @@ class ThreadedSerialHandler:
                     self._log("SerialHandler is None: attempting to create a new instance...")
                     self._serial_handler = SerialHandler(port, self._baudrate, self._timeout)
                 if self._serial_handler.is_open() is False:
-                    self._log("Serial connection is not connected: attempting to connect...")
+                    self._log("Serial connection is not open: attempting to connect...")
                     self._serial_handler.open()
                     self._message_queue.clear() # Avoid stacked queued messages
                     self._log(f"Serial connection established to port {port}.")

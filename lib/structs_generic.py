@@ -28,7 +28,7 @@ class DriverInterfaceABC(ABC):
         self.logger = logger
 
     @abstractmethod
-    def drive(self, forward_kinematics_params: FowardKinematicsDescription) -> None:
+    def drive(self, forward_kinematics_params: FowardKinematicsDescription, timeout: Optional[float] = None) -> None:
         """Send drive control"""
         raise NotImplementedError()
     
@@ -42,11 +42,13 @@ class KinematicsManagerABC(ABC):
     def __init__(
             self,
             driver_interfaces: List[DriverInterfaceABC] = [],
+            drive_timeout: Optional[float] = 10.0,
             logger: Optional[Logger] = None
             ) -> None:
         super().__init__()
         self.logger = logger
         self.driver_interfaces = driver_interfaces
+        self.drive_timeout = drive_timeout
     
     def forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> bool:
         """Compute forward kinematics and send drive command to all driver interfaces."""
@@ -55,7 +57,7 @@ class KinematicsManagerABC(ABC):
             return False
         
         for driver in self.driver_interfaces: # Issue all drive commands
-            driver.drive(forward_kinematics_params)
+            driver.drive(forward_kinematics_params, self.drive_timeout)
         return True
 
     def inverse_kinematics(self, inverse_kinematics_params: InverseKinematicsDescription) -> bool:
@@ -65,7 +67,7 @@ class KinematicsManagerABC(ABC):
             return False
 
         for driver in self.driver_interfaces: # Issue all drive commands
-            driver.drive(fwd_params)
+            driver.drive(fwd_params, self.drive_timeout)
         return True
 
     @abstractmethod
