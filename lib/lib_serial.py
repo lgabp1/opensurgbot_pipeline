@@ -23,13 +23,13 @@ class SerialHandler:
     locks: Dict[str, Lock] = {} # Locks for all serial handles
 
     
-    def __init__(self, port: str, baudrate: int, timeout: float = 1.0):
+    def __init__(self, port: str, baudrate: int, timeout: float = 0.1):
         """Class to handle serial communication
         
         Args:
             port (str): The serial port to connect to. Example: 'COM3' on Windows or '/dev/ttyUSB0' on Linux.
             baudrate (int): The baud rate for the serial communication. Example: 9600.
-            timeout (float, optional): The timeout for the serial communication. Defaults to 1.0."""
+            timeout (float, optional): The timeout for the serial communication (refresh rate). Defaults to 0.1."""
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout

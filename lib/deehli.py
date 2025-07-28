@@ -16,8 +16,8 @@ except ImportError:
 
 class KinematicsManager(KinematicsManagerABC):
     """Class to manage kinematics, and transmit commands to driver interfaces"""
-    theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = 0.0, np.radians(-6), np.radians(7), np.radians(-7) # rad, meaning: at angles = +offset, neutral position of the tip
-
+    # theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = 0.0, np.radians(-6), np.radians(7), np.radians(-7) # rad, meaning: at angles = +offset, neutral position of the tip
+    theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = 0.0, 0.0, 0.0, 0.0
     @override
     def compute_forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> Union[InverseKinematicsDescription, None]:
         """Compute forward kinematics. If invalid, returns None.""" 
@@ -103,7 +103,6 @@ class KinematicsManager(KinematicsManagerABC):
     
 class UserInterface3DViz(UserInterfaceABC):
     """User interface with 3D visualization."""
-    #TODO: add lambd slider (externally ?)
 
     def __init__(self, kinematics_manager: KinematicsManagerABC, logger: Union[Optional[Logger], None] = None) -> None:
         super().__init__(kinematics_manager, logger)
@@ -186,7 +185,7 @@ class DriverInterface(DriverInterfaceABC):
     servo_max_speed = 100.0 # deg per s
     ZDT_max_speed = 2 # cm per s
 
-    def __init__(self, serial_port: Optional[str] = None, serial_timeout: float = 1.0, serial_wait_time: float = 0.1, logger: Optional[Logger] = None) -> None:
+    def __init__(self, serial_port: Optional[str] = None, serial_timeout: float = 0.1, serial_wait_time: float = 0.1, logger: Optional[Logger] = None) -> None:
         super().__init__(logger)
         self.serial = ThreadedSerialHandler(port=serial_port,baudrate=DriverInterface.serial_baudrate, timeout=serial_timeout, wait_time=serial_wait_time, logger=logger)
     
@@ -207,13 +206,16 @@ class DriverInterface(DriverInterfaceABC):
         lambd = forward_kinematics_params.lambd
         steps, speed = self._get_zdt_args(lambd, self.ZDT_max_speed)
         msg += f",1,{steps},{speed},0,{round(timeout*1000)}"
+
+        # ==== Sending the message ====
         self.serial.queue_message(msg)
         if self.logger:
             self.logger.debug(f"Queued serial message msg={msg}")
         
+        # ==== Waiting for acknowledgment ====
         cmd_begin_time = time.time()
         acked = False
-        while time.time() - cmd_begin_time < timeout: # Wait for ack
+        while time.time() - cmd_begin_time < timeout: # Wait for ack*
             recv = self.serial.receive_line(timeout=timeout)
             if recv and recv.startswith("250"):
                 acked = True
