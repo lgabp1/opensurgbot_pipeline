@@ -4,3 +4,6 @@
 [submodule "lib/opensugbot_kinevizu"]
 	path = lib/opensugbot_kinevizu
 	url = https://github.com/lgabp1/opensurgbot-kinevizu.git
+[submodule "lib/opensurgbot_kinevizu"]
+	path = lib/opensurgbot_kinevizu
+	url = https://github.com/lgabp1/opensurgbot_kinevizu
