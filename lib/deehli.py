@@ -183,7 +183,7 @@ class UserInterface3DViz(UserInterfaceABC):
 class DriverInterface(DriverInterfaceABC):
     serial_baudrate = 115200
     servo_max_speed = 100.0 # deg per s
-    ZDT_max_speed = 2 # cm per s
+    ZDT_max_speed = 2 # cm per s # Max speed ~6cm /s
 
     def __init__(self, serial_port: Optional[str] = None, serial_timeout: float = 0.1, serial_wait_time: float = 0.1, logger: Optional[Logger] = None) -> None:
         super().__init__(logger)
