@@ -1,4 +1,4 @@
-from lib.deehli import UserInterface3DViz, KinematicsManager, DriverInterface
+from lib.opensurgbot_pipeline import UserInterface3DViz, KinematicsManager, DriverInterface
 import logging
 
 if __name__ == "__main__":

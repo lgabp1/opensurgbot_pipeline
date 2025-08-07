@@ -1,10 +1,11 @@
 import time
 import numpy as np
 from logging import Logger
+from matplotlib.backend_bases import Event
 from typing import Optional, Union, Tuple
 from .structs_generic import UserInterfaceABC, DriverInterfaceABC, KinematicsManagerABC, FowardKinematicsDescription, InverseKinematicsDescription
-from .kinevisu.kinevisu import DeehliViz, Event
 from .lib_serial import ThreadedSerialHandler
+from .opensugbot_kinevizu.kinevisu.kinevisu import OpensurgbotViz
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 
@@ -22,7 +23,7 @@ class KinematicsManager(KinematicsManagerABC):
     def compute_forward_kinematics(self, forward_kinematics_params: FowardKinematicsDescription) -> Union[InverseKinematicsDescription, None]:
         """Compute forward kinematics. If invalid, returns None.""" 
         # TODO: use matrix like for inverse
-        theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = DeehliViz.theta_1_offset, DeehliViz.theta_2_offset, DeehliViz.theta_3_offset, DeehliViz.theta_4_offset
+        theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = OpensurgbotViz.theta_1_offset, OpensurgbotViz.theta_2_offset, OpensurgbotViz.theta_3_offset, OpensurgbotViz.theta_4_offset
         theta_1, theta_2, theta_3, theta_4 = forward_kinematics_params.theta_1, forward_kinematics_params.theta_2, forward_kinematics_params.theta_3, forward_kinematics_params.theta_4
         theta_1, theta_2, theta_3, theta_4 = theta_1 - theta_1_offset, theta_2 - theta_2_offset, theta_3 - theta_3_offset, theta_4 - theta_4_offset # Apply offsets
 
@@ -106,7 +107,7 @@ class UserInterface3DViz(UserInterfaceABC):
 
     def __init__(self, kinematics_manager: KinematicsManagerABC, logger: Union[Optional[Logger], None] = None) -> None:
         super().__init__(kinematics_manager, logger)
-        self.viz = DeehliViz()
+        self.viz = OpensurgbotViz()
 
         # === Add custom button ===
         self.viz.ext_create_user_button("Reconnect", self._on_reconnect_click, width=0.15, x=0.8)
@@ -191,7 +192,7 @@ class DriverInterface(DriverInterfaceABC):
     
     @override
     def drive(self, forward_kinematics_params: FowardKinematicsDescription, timeout: float = 10.0) -> None:
-        """Send drive control and wait for the movement to finish. Will use: command id 101 - deehli drive all blocking"""
+        """Send drive control and wait for the movement to finish. Will use: command id 101 - opensurgbot drive all blocking"""
         # ==== Building the message ====
         msg = '101'
         # === servos ===

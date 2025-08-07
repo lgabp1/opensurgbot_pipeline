@@ -1,10 +1,11 @@
-# deehli
+# opensurgbot-pipeline
 
+Submodule of [opensurgbot](https://github.com/lgabp1/opensurgbot).
 python library to drive the da Vinci Interface and STM32CubeIDE example integration.
 
 ## Requirements
 
-* [python 3.10+](https://www.python.org/)
+* [python 3.7+](https://www.python.org/)
 * [my da Vinci viz library](https://github.com/lgabp1/kinevizu). Please place the `visualization` folder in `./lib/`.
 
 ## Usage

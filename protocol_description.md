@@ -1,4 +1,4 @@
-# Protocol Description for deehli
+# Protocol Description for opensurgbot
 
 This document will quickly summarize the protocol used when communicating from the computer to the board.
 
@@ -32,7 +32,7 @@ Here is a description of the supported commands:
 
 **Other**
 | cmd id | cmd name | parameters | types |
-| 101 | deehli drive all blocking | cmdid,target_angle1(deg),target_angle2(deg),target_angle3(deg),target_angle4(deg),max_speeds(degps),zdt_dir,npulses,speed,accellvl,reached_timeout(ms) | u8,float,float,float,float,float,bool,u32,u16,u8,u32 |
+| 101 | opensurgbot drive all blocking | cmdid,target_angle1(deg),target_angle2(deg),target_angle3(deg),target_angle4(deg),max_speeds(degps),zdt_dir,npulses,speed,accellvl,reached_timeout(ms) | u8,float,float,float,float,float,bool,u32,u16,u8,u32 |
 
 note: "bool" means 0:False, 1:True in the string message
 
