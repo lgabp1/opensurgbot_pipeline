@@ -5,7 +5,7 @@ from matplotlib.backend_bases import Event
 from typing import Optional, Union, Tuple
 from .structs_generic import UserInterfaceABC, DriverInterfaceABC, KinematicsManagerABC, FowardKinematicsDescription, InverseKinematicsDescription
 from .lib_serial import ThreadedSerialHandler
-from .opensugbot_kinevizu.kinevisu.kinevisu import OpensurgbotViz
+from .opensurgbot_kinevizu.kinevisu.kinevisu import OpensurgbotViz
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 
@@ -79,7 +79,7 @@ class KinematicsManager(KinematicsManagerABC):
         """True if in bounds, False otherwise."""
         roll, pitch, jaw1, jaw2 = inv_params.theta_r, inv_params.theta_p, inv_params.theta_j1, inv_params.theta_j2
         theta_1, _, theta_3, theta_4 = fwd_params.theta_1, fwd_params.theta_2, fwd_params.theta_3, fwd_params.theta_4
-        theta_3_offset, theta_4_offset = self.theta_3_offset, self.theta_4_offset
+        theta_1_offset, theta_2_offset, theta_3_offset, theta_4_offset = self.theta_1_offset, self.theta_2_offset, self.theta_3_offset, self.theta_4_offset
 
         # Trivial boundary conditions
         if ((np.degrees(pitch) < -80 or np.degrees(pitch) > 80) or
@@ -95,8 +95,8 @@ class KinematicsManager(KinematicsManagerABC):
             delta_boundary += 80/60*(theta_3 - theta_3_offset + np.radians(90))
         elif np.radians(90) < theta_3 - theta_3_offset:
             delta_boundary += 80/60*(theta_4 - theta_4_offset - np.radians(90))
-        if ((theta_3 - self.theta_3_offset - (theta_4 - self.theta_4_offset) > 0.01) or
-            (theta_1 - self.theta_1_offset < -np.radians(80) + delta_boundary or theta_1 - self.theta_1_offset > np.radians(80) + delta_boundary)
+        if ((theta_3 - theta_3_offset - (theta_4 - theta_4_offset) > 0.01) or
+            (theta_1 - theta_1_offset < -np.radians(80) + delta_boundary or theta_1 - theta_1_offset > np.radians(80) + delta_boundary)
          ):
             return False
 
